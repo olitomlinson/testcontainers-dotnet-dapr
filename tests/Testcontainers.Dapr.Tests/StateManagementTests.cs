@@ -10,7 +10,7 @@ public sealed class StateManagementTests : IAsyncLifetime
     private DaprContainer _daprContainer;
     private INetwork _network;
     private const string _stateStoreName = "mystatestore";
-    private string _redisComponent = @"---
+    private string _stateStoreComponent = @"---
         apiVersion: dapr.io/v1alpha1
         kind: Component
         metadata:
@@ -38,14 +38,14 @@ public sealed class StateManagementTests : IAsyncLifetime
             .Build();
         await _redisContainer.StartAsync().ConfigureAwait(false);
 
-        var redisComponent = string.Format(_redisComponent, _stateStoreName, $"{redisAlias}:{RedisBuilder.RedisPort}", "");
+        var stateComponent = string.Format(_stateStoreComponent, _stateStoreName, $"{redisAlias}:{RedisBuilder.RedisPort}", "");
 
         _daprContainer = new DaprBuilder()
             .WithLogLevel("debug")
             .WithAppId("my-app")
             .WithNetwork(_network)
             .WithResourcesPath("/DaprComponents")
-            .WithResourceMapping(Encoding.Default.GetBytes(redisComponent), "/DaprComponents/statestore.yaml")
+            .WithResourceMapping(Encoding.Default.GetBytes(stateComponent), "/DaprComponents/statestore.yaml")
             .DependsOn(_redisContainer)
             .Build();
         await _daprContainer.StartAsync().ConfigureAwait(false);
