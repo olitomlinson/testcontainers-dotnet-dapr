@@ -3,7 +3,6 @@ namespace DotNet.Testcontainers.Tests.Fixtures
   using System.IO;
   using System.Threading.Tasks;
   using DotNet.Testcontainers.Builders;
-  using DotNet.Testcontainers.Containers;
   using DotNet.Testcontainers.Images;
   using JetBrains.Annotations;
   using Xunit;
@@ -13,7 +12,6 @@ namespace DotNet.Testcontainers.Tests.Fixtures
   {
     private readonly IFutureDockerImage _image = new ImageFromDockerfileBuilder()
       .WithDockerfileDirectory(Path.Combine(Directory.GetCurrentDirectory(), "Assets", "healthWaitStrategy"))
-      .WithBuildArgument("RESOURCE_REAPER_SESSION_ID", ResourceReaper.DefaultSessionId.ToString("D"))
       .Build();
 
     public string Repository => _image.Repository;

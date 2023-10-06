@@ -1,4 +1,5 @@
 site_name: Testcontainers for .NET
+site_url: https://dotnet.testcontainers.org
 repo_name: testcontainers-dotnet
 repo_url: https://github.com/testcontainers/testcontainers-dotnet
 edit_uri: edit/develop/docs/
@@ -14,6 +15,7 @@ theme:
   logo: logo.svg
 extra_css:
   - css/extra.css
+  - css/tc-header.css
 plugins:
   - codeinclude
   - markdownextradata
@@ -24,6 +26,7 @@ markdown_extensions:
   - pymdownx.superfences
 nav:
   - index.md
+  - cicd/index.md
   - custom_configuration/index.md
   - api/create_docker_image.md
   - api/create_docker_container.md
@@ -37,3 +40,4 @@ nav:
   - Modules:
     - modules/index.md
     - modules/postgres.md
+    - modules/rabbitmq.md

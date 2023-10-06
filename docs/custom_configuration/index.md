@@ -1,6 +1,6 @@
 # Custom Configuration
 
-Testcontainers supports various configurations to set up your test environment. It automatically discovers the Docker environment and applies the configuration. You can set or override the default values either with the Testcontainers [properties file][properties-file-format] (`~/testcontainers.properties`) or with environment variables. If you prefer to configure your test environment at runtime, you can set or override the configuration through the `TestcontainersSettings` class. The following configurations are available:
+Testcontainers supports various configurations to set up your test environment. It automatically discovers the Docker environment and applies the configuration. You can set or override the default values either with the Testcontainers [properties file][properties-file-format] (`~/.testcontainers.properties`) or with environment variables. The following configurations are available:
 
 | Properties File             | Environment Variable                       | Description                                                                                                               | Default                     |
 |-----------------------------|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|-----------------------------|
@@ -14,12 +14,24 @@ Testcontainers supports various configurations to set up your test environment. 
 | `docker.socket.override`    | `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE`    | The file path to the Docker daemon socket that is used by Ryuk (resource reaper).                                         | `/var/run/docker.sock`      |
 | `ryuk.disabled`             | `TESTCONTAINERS_RYUK_DISABLED`             | Disables Ryuk (resource reaper).                                                                                          | `false`                     |
 | `ryuk.container.privileged` | `TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED` | Runs Ryuk (resource reaper) in privileged mode.                                                                           | `false`                     |
-| `ryuk.container.image`      | `TESTCONTAINERS_RYUK_CONTAINER_IMAGE`      | The Ryuk (resource reaper) Docker image.                                                                                  | `testcontainers/ryuk:0.3.4` |
+| `ryuk.container.image`      | `TESTCONTAINERS_RYUK_CONTAINER_IMAGE`      | The Ryuk (resource reaper) Docker image.                                                                                  | `testcontainers/ryuk:0.5.1` |
 | `hub.image.name.prefix`     | `TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX`     | The name to use for substituting the Docker Hub registry part of the image name.                                          | -                           |
+
+## Configure remote container runtime
+
+To configure a remote container runtime, Testcontainers provides support for Docker's environment variables in addition to the properties file. During initialization, Testcontainers' auto-discovery feature detect and apply custom configurations including container runtimes. If you are running Docker on a remote host, you can configure it using either of the following methods:
+
+```console title="Properties File"
+docker.host=tcp://docker:2375
+```
+
+```console title="Environment Variable"
+DOCKER_HOST=tcp://docker:2375
+```
 
 ## Enable logging
 
-In .NET logging goes usually through the test framework. Testcontainers is not aware of the project's test framework and may not forward log messages to the right stream. The default implementation forwards log messages to the `Console` (respectively `stdout` and `stderr`) and `Debug`. The output should at least pop up in the IDE running tests in the `Debug` configuration. To override the default implementation, set the `TestcontainersSettings.Logger` property to an instance of an `ILogger` implementation.
+In .NET logging usually goes through the test framework. Testcontainers is not aware of the project's test framework and may not forward log messages to the appropriate output stream. The default implementation forwards log messages to the `Console` (respectively `stdout` and `stderr`). The output should at least pop up in the IDE running tests in the `Debug` configuration. To override the default implementation, set the `TestcontainersSettings.Logger` property to an instance of an `ILogger` implementation before creating a Docker resource, such as a container.
 
     [testcontainers.org 00:00:00.34] Connected to Docker:
       Host: tcp://127.0.0.1:60706/
@@ -41,5 +53,7 @@ In .NET logging goes usually through the test framework. Testcontainers is not a
     [testcontainers.org 00:00:06.26] Start Docker container 027af397344d08d5fc174bf5b5d449f6b352a8a506306d3d96390aaa2bb0445d
     [testcontainers.org 00:00:06.64] Delete Docker container 027af397344d08d5fc174bf5b5d449f6b352a8a506306d3d96390aaa2bb0445d
 
-[properties-file-format]: https://docs.oracle.com/cd/E23095_01/Platform.93/ATGProgGuide/html/s0204propertiesfileformat01.html
+To enable debug log messages in the default implementation, set the property `ConsoleLogger.Instance.DebugLogLevelEnabled` to `true`. This will forward messages related to building or pulling Docker images to the output stream.
+
+[properties-file-format]: https://en.wikipedia.org/wiki/.properties
 [use-statically-defined-credentials]: https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#use-statically-defined-credentials

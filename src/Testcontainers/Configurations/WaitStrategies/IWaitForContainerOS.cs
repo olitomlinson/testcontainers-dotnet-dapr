@@ -2,7 +2,6 @@ namespace DotNet.Testcontainers.Configurations
 {
   using System;
   using System.Collections.Generic;
-  using System.IO;
   using System.Text.RegularExpressions;
   using JetBrains.Annotations;
 
@@ -75,16 +74,6 @@ namespace DotNet.Testcontainers.Configurations
     IWaitForContainerOS UntilMessageIsLogged(Regex pattern);
 
     /// <summary>
-    /// Waits until the message is logged in the steam.
-    /// </summary>
-    /// <param name="stream">The stream to be searched.</param>
-    /// <param name="message">The message to be checked.</param>
-    /// <returns>A configured instance of <see cref="IWaitForContainerOS" />.</returns>
-    [PublicAPI]
-    [Obsolete("It is no longer necessary to assign an output consumer to read the container's log messages.\nUse IWaitForContainerOS.UntilMessageIsLogged(string) or IWaitForContainerOS.UntilMessageIsLogged(Regex) instead.")]
-    IWaitForContainerOS UntilMessageIsLogged(Stream stream, string message);
-
-    /// <summary>
     /// Waits until the operation is completed successfully.
     /// </summary>
     /// <param name="operation">The operation to be executed.</param>
@@ -114,7 +103,7 @@ namespace DotNet.Testcontainers.Configurations
     /// <summary>
     /// Returns a collection with all configured wait strategies.
     /// </summary>
-    /// <returns>List with all configured wait strategies.</returns>
+    /// <returns>Returns a list with all configured wait strategies.</returns>
     [PublicAPI]
     IEnumerable<IWaitUntil> Build();
   }

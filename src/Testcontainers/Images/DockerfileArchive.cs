@@ -17,7 +17,7 @@ namespace DotNet.Testcontainers.Images
   /// </summary>
   internal sealed class DockerfileArchive : ITarArchive
   {
-    private static readonly IOperatingSystem OS = new Unix(dockerEndpointAuthConfig: null);
+    private static readonly Regex FromLinePattern = new Regex("FROM (?<arg>--\\S+\\s)*(?<image>\\S+).*", RegexOptions.None, TimeSpan.FromSeconds(1));
 
     private readonly DirectoryInfo _dockerfileDirectory;
 
@@ -66,12 +66,60 @@ namespace DotNet.Testcontainers.Images
       _logger = logger;
     }
 
+    /// <summary>
+    /// Gets a collection of base images.
+    /// </summary>
+    /// <remarks>
+    /// This method reads the Dockerfile and collects a list of base images. It
+    /// excludes stages that do not correspond to base images. For example, it will not include
+    /// the second line from the following Dockerfile configuration:
+    /// <code>
+    ///   FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+    ///   FROM build
+    /// </code>
+    /// </remarks>
+    /// <returns>An <see cref="IEnumerable{T}" /> of <see cref="IImage" />.</returns>
+    public IEnumerable<IImage> GetBaseImages()
+    {
+      const string imageGroup = "image";
+
+      var lines = File.ReadAllLines(Path.Combine(_dockerfileDirectory.FullName, _dockerfile.ToString()))
+        .Select(line => line.Trim())
+        .Where(line => !string.IsNullOrEmpty(line))
+        .Where(line => !line.StartsWith("#", StringComparison.Ordinal))
+        .Select(line => FromLinePattern.Match(line))
+        .Where(match => match.Success)
+        // Until now, we are unable to resolve variables within Dockerfiles. Ignore base
+        // images that utilize variables. Expect them to exist on the host.
+        .Where(match => !match.Groups[imageGroup].Value.Contains('$'))
+        .Where(match => !match.Groups[imageGroup].Value.Any(char.IsUpper))
+        .ToArray();
+
+      var stages = lines
+        .Select(line => line.Value)
+        .Select(line => line.Split(new [] { " AS ", " As ", " aS ", " as " }, StringSplitOptions.RemoveEmptyEntries))
+        .Where(substrings => substrings.Length > 1)
+        .Select(substrings => substrings[substrings.Length - 1])
+        .Distinct()
+        .ToArray();
+
+      var images = lines
+        .Select(match => match.Groups[imageGroup])
+        .Select(group => group.Value)
+        .Where(value => !stages.Contains(value))
+        .Distinct()
+        .Select(value => new DockerImage(value))
+        .ToArray();
+
+      return images;
+    }
+
     /// <inheritdoc />
     public async Task<string> Tar(CancellationToken ct = default)
     {
-      var dockerfileDirectoryPath = OS.NormalizePath(_dockerfileDirectory.FullName);
+      var dockerfileDirectoryPath = Unix.Instance.NormalizePath(_dockerfileDirectory.FullName);
 
-      var dockerfileFilePath = OS.NormalizePath(_dockerfile.ToString());
+      var dockerfileFilePath = Unix.Instance.NormalizePath(_dockerfile.ToString());
 
       var dockerfileArchiveFileName = Regex.Replace(_image.FullName, "[^a-zA-Z0-9]", "-", RegexOptions.None, TimeSpan.FromSeconds(1)).ToLowerInvariant();
 
@@ -105,7 +153,7 @@ namespace DotNet.Testcontainers.Images
                 await tarOutputStream.PutNextEntryAsync(entry, ct)
                   .ConfigureAwait(false);
 
-                await inputStream.CopyToAsync(tarOutputStream, 4096, ct)
+                await inputStream.CopyToAsync(tarOutputStream, 81920, ct)
                   .ConfigureAwait(false);
 
                 await tarOutputStream.CloseEntryAsync(ct)
@@ -133,7 +181,7 @@ namespace DotNet.Testcontainers.Images
       return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
         .AsParallel()
         .Select(Path.GetFullPath)
-        .Select(OS.NormalizePath)
+        .Select(Unix.Instance.NormalizePath)
         .ToArray();
     }
   }

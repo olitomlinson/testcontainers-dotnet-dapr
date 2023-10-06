@@ -1,6 +1,6 @@
-#tool nuget:?package=dotnet-sonarscanner&version=5.11.0
+#tool nuget:?package=dotnet-sonarscanner&version=5.13.1
 
-#addin nuget:?package=Cake.Sonar&version=1.1.31
+#addin nuget:?package=Cake.Sonar&version=1.1.32
 
 #addin nuget:?package=Cake.Git&version=3.0.0
 
@@ -132,15 +132,17 @@ Task("Create-NuGet-Packages")
     NoRestore = true,
     NoBuild = true,
     IncludeSymbols = true,
+    SymbolPackageFormat = "snupkg",
     OutputDirectory = param.Paths.Directories.NuGetDirectoryPath,
     ArgumentCustomization = args => args
-      .Append("/p:SymbolPackageFormat=snupkg")
+      .Append("/p:ContinuousIntegrationBuild=true")
+      .Append("/p:EmbedUntrackedSources=true")
       .Append($"/p:Version={param.Version}")
   });
 });
 
 Task("Sign-NuGet-Packages")
-  .WithCriteria(() => param.ShouldPublish)
+  .WithCriteria(() => param.ShouldPublish && false /* We do not have access to a valid code signing certificate anymore. */)
   .Does(() =>
 {
   StartProcess("dotnet", new ProcessSettings

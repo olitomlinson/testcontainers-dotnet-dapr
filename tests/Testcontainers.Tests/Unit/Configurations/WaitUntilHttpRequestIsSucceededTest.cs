@@ -1,9 +1,10 @@
-namespace DotNet.Testcontainers.Tests.Unit.Configurations
+namespace DotNet.Testcontainers.Tests.Unit
 {
   using System;
   using System.Collections.Generic;
   using System.Linq;
   using System.Net;
+  using System.Net.Http;
   using System.Threading.Tasks;
   using DotNet.Testcontainers.Builders;
   using DotNet.Testcontainers.Commons;
@@ -18,7 +19,7 @@ namespace DotNet.Testcontainers.Tests.Unit.Configurations
     private readonly IContainer _container = new ContainerBuilder()
       .WithImage(CommonImages.Alpine)
       .WithEntrypoint("/bin/sh", "-c")
-      .WithCommand($"echo \"HTTP/1.1 200 OK\r\n\" | nc -l -p {HttpPort}")
+      .WithCommand($"while true; do echo \"HTTP/1.1 200 OK\r\n\" | nc -l -p {HttpPort}; done")
       .WithPortBinding(HttpPort, true)
       .Build();
 
@@ -80,6 +81,53 @@ namespace DotNet.Testcontainers.Tests.Unit.Configurations
       Assert.Contains("QWxhZGRpbjpvcGVuIHNlc2FtZQ==", stdout);
       Assert.Contains(httpHeaders.First().Key, stdout);
       Assert.Contains(httpHeaders.First().Value, stdout);
+    }
+
+    [Fact]
+    public async Task HttpWaitStrategyUsesCustomHttpClientHandler()
+    {
+      // Given
+      var cookieContainer = new CookieContainer();
+      cookieContainer.Add(new Cookie("Key1", "Value1", "/", _container.Hostname));
+
+      using var httpMessageHandler = new HttpClientHandler();
+      httpMessageHandler.CookieContainer = cookieContainer;
+
+      var httpWaitStrategy = new HttpWaitStrategy().UsingHttpMessageHandler(httpMessageHandler);
+
+      // When
+      var succeeded = await httpWaitStrategy.UntilAsync(_container)
+        .ConfigureAwait(false);
+
+      await Task.Delay(TimeSpan.FromSeconds(1))
+        .ConfigureAwait(false);
+
+      var (stdout, _) = await _container.GetLogsAsync()
+        .ConfigureAwait(false);
+
+      // Then
+      Assert.True(succeeded);
+      Assert.Contains("Cookie", stdout);
+      Assert.Contains("Key1=Value1", stdout);
+    }
+
+    [Fact]
+    public async Task HttpWaitStrategyReusesCustomHttpClientHandler()
+    {
+      // Given
+      using var httpMessageHandler = new HttpClientHandler();
+
+      var httpWaitStrategy = new HttpWaitStrategy().UsingHttpMessageHandler(httpMessageHandler);
+
+      // When
+      await httpWaitStrategy.UntilAsync(_container)
+        .ConfigureAwait(false);
+
+      var exceptionOnSubsequentCall = await Record.ExceptionAsync(() => httpWaitStrategy.UntilAsync(_container))
+        .ConfigureAwait(false);
+
+      // Then
+      Assert.Null(exceptionOnSubsequentCall);
     }
   }
 }

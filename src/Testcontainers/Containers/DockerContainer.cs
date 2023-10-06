@@ -3,6 +3,7 @@ namespace DotNet.Testcontainers.Containers
   using System;
   using System.Collections.Generic;
   using System.Globalization;
+  using System.IO;
   using System.Linq;
   using System.Threading;
   using System.Threading.Tasks;
@@ -223,7 +224,7 @@ namespace DotNet.Testcontainers.Containers
     {
       ThrowIfResourceNotFound();
 
-      if (_container.NetworkSettings.Ports.TryGetValue($"{containerPort}/tcp", out var portBindings) && ushort.TryParse(portBindings.First().HostPort, out var publicPort))
+      if (_container.NetworkSettings.Ports.TryGetValue($"{containerPort}/tcp", out var portBindings) && ushort.TryParse(portBindings[0].HostPort, out var publicPort))
       {
         return publicPort;
       }
@@ -279,9 +280,36 @@ namespace DotNet.Testcontainers.Containers
     }
 
     /// <inheritdoc />
-    public Task CopyFileAsync(string filePath, byte[] fileContent, int accessMode = 384, int userId = 0, int groupId = 0, CancellationToken ct = default)
+    public Task CopyAsync(byte[] fileContent, string filePath, UnixFileModes fileMode = Unix.FileMode644, CancellationToken ct = default)
     {
-      return _client.CopyFileAsync(Id, filePath, fileContent, accessMode, userId, groupId, ct);
+      return _client.CopyAsync(Id, new BinaryResourceMapping(fileContent, filePath, fileMode), ct);
+    }
+
+    /// <inheritdoc />
+    public Task CopyAsync(string source, string target, UnixFileModes fileMode = Unix.FileMode644, CancellationToken ct = default)
+    {
+      var fileAttributes = File.GetAttributes(source);
+
+      if ((fileAttributes & FileAttributes.Directory) == FileAttributes.Directory)
+      {
+        return CopyAsync(new DirectoryInfo(source), target, fileMode, ct);
+      }
+      else
+      {
+        return CopyAsync(new FileInfo(source), target, fileMode, ct);
+      }
+    }
+
+    /// <inheritdoc />
+    public Task CopyAsync(FileInfo source, string target, UnixFileModes fileMode = Unix.FileMode644, CancellationToken ct = default)
+    {
+      return _client.CopyAsync(Id, source, target, fileMode, ct);
+    }
+
+    /// <inheritdoc />
+    public Task CopyAsync(DirectoryInfo source, string target, UnixFileModes fileMode = Unix.FileMode644, CancellationToken ct = default)
+    {
+      return _client.CopyAsync(Id, source, target, fileMode, ct);
     }
 
     /// <inheritdoc />
@@ -395,6 +423,9 @@ namespace DotNet.Testcontainers.Containers
           .ConfigureAwait(false);
       }
 
+      await _client.AttachAsync(_container.ID, _configuration.OutputConsumer, ct)
+        .ConfigureAwait(false);
+
       await _client.StartAsync(_container.ID, ct)
         .ConfigureAwait(false);
 
@@ -406,11 +437,15 @@ namespace DotNet.Testcontainers.Containers
       await _configuration.StartupCallback(this, ct)
         .ConfigureAwait(false);
 
+      Logger.StartReadinessCheck(_container.ID);
+
       foreach (var waitStrategy in _configuration.WaitStrategies)
       {
         await WaitStrategy.WaitUntilAsync(() => CheckWaitStrategyAsync(waitStrategy), TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan, ct)
           .ConfigureAwait(false);
       }
+
+      Logger.CompleteReadinessCheck(_container.ID);
 
       Started?.Invoke(this, EventArgs.Empty);
     }
@@ -442,7 +477,7 @@ namespace DotNet.Testcontainers.Containers
         _container = await _client.InspectContainerAsync(_container.ID, ct)
           .ConfigureAwait(false);
       }
-      catch (DockerContainerNotFoundException)
+      catch (DockerApiException)
       {
         _container = new ContainerInspectResponse();
       }

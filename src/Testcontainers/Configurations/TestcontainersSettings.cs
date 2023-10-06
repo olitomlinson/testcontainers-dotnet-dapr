@@ -1,6 +1,7 @@
 namespace DotNet.Testcontainers.Configurations
 {
   using System;
+  using System.Collections.Generic;
   using System.Globalization;
   using System.Linq;
   using System.Runtime.InteropServices;
@@ -21,20 +22,25 @@ namespace DotNet.Testcontainers.Configurations
   {
     private static readonly ManualResetEventSlim ManualResetEvent = new ManualResetEventSlim(false);
 
-    private static readonly IDockerEndpointAuthenticationConfiguration DockerEndpointAuthConfig =
-      new IDockerEndpointAuthenticationProvider[]
+    [CanBeNull]
+    private static readonly IDockerEndpointAuthenticationProvider DockerEndpointAuthProvider
+      = new IDockerEndpointAuthenticationProvider[]
         {
+          new TestcontainersEndpointAuthenticationProvider(),
           new MTlsEndpointAuthenticationProvider(),
           new TlsEndpointAuthenticationProvider(),
           new EnvironmentEndpointAuthenticationProvider(),
           new NpipeEndpointAuthenticationProvider(),
           new UnixEndpointAuthenticationProvider(),
+          new DockerDesktopEndpointAuthenticationProvider(),
           new RootlessUnixEndpointAuthenticationProvider(),
         }
         .Where(authProvider => authProvider.IsApplicable())
-        .Where(authProvider => authProvider.IsAvailable())
-        .Select(authProvider => authProvider.GetAuthConfig())
-        .FirstOrDefault();
+        .FirstOrDefault(authProvider => authProvider.IsAvailable());
+
+    [CanBeNull]
+    private static readonly IDockerEndpointAuthenticationConfiguration DockerEndpointAuthConfig
+      = DockerEndpointAuthProvider?.GetAuthConfig();
 
     static TestcontainersSettings()
     {
@@ -76,7 +82,7 @@ namespace DotNet.Testcontainers.Configurations
                 runtimeInfo.AppendLine(dockerInfo.OperatingSystem);
 
                 runtimeInfo.Append("  Total Memory: ");
-                runtimeInfo.AppendFormat(CultureInfo.InvariantCulture, "{0:F} {1}", dockerInfo.MemTotal / Math.Pow(1024, byteUnits.Length), byteUnits.Last());
+                runtimeInfo.AppendFormat(CultureInfo.InvariantCulture, "{0:F} {1}", dockerInfo.MemTotal / Math.Pow(1024, byteUnits.Length), byteUnits[byteUnits.Length - 1]);
               }
               catch
               {
@@ -103,33 +109,35 @@ namespace DotNet.Testcontainers.Configurations
     /// </summary>
     [CanBeNull]
     public static string DockerHostOverride { get; set; }
-      = PropertiesFileConfiguration.Instance.GetDockerHostOverride() ?? EnvironmentConfiguration.Instance.GetDockerHostOverride();
+      = DockerEndpointAuthProvider is ICustomConfiguration config
+        ? config.GetDockerHostOverride() : EnvironmentConfiguration.Instance.GetDockerHostOverride() ?? PropertiesFileConfiguration.Instance.GetDockerHostOverride();
 
     /// <summary>
     /// Gets or sets the Docker socket override value.
     /// </summary>
     [CanBeNull]
     public static string DockerSocketOverride { get; set; }
-      = PropertiesFileConfiguration.Instance.GetDockerSocketOverride() ?? EnvironmentConfiguration.Instance.GetDockerSocketOverride();
+      = DockerEndpointAuthProvider is ICustomConfiguration config
+        ? config.GetDockerSocketOverride() : EnvironmentConfiguration.Instance.GetDockerSocketOverride() ?? PropertiesFileConfiguration.Instance.GetDockerSocketOverride();
 
     /// <summary>
     /// Gets or sets a value indicating whether the <see cref="ResourceReaper" /> is enabled or not.
     /// </summary>
     public static bool ResourceReaperEnabled { get; set; }
-      = !PropertiesFileConfiguration.Instance.GetRyukDisabled() && !EnvironmentConfiguration.Instance.GetRyukDisabled();
+      = !EnvironmentConfiguration.Instance.GetRyukDisabled() && !PropertiesFileConfiguration.Instance.GetRyukDisabled();
 
     /// <summary>
     /// Gets or sets a value indicating whether the <see cref="ResourceReaper" /> privileged mode is enabled or not.
     /// </summary>
     public static bool ResourceReaperPrivilegedModeEnabled { get; set; }
-      = PropertiesFileConfiguration.Instance.GetRyukContainerPrivileged() || EnvironmentConfiguration.Instance.GetRyukContainerPrivileged();
+      = EnvironmentConfiguration.Instance.GetRyukContainerPrivileged() || PropertiesFileConfiguration.Instance.GetRyukContainerPrivileged();
 
     /// <summary>
     /// Gets or sets the <see cref="ResourceReaper" /> image.
     /// </summary>
     [CanBeNull]
     public static IImage ResourceReaperImage { get; set; }
-      = PropertiesFileConfiguration.Instance.GetRyukContainerImage() ?? EnvironmentConfiguration.Instance.GetRyukContainerImage();
+      = EnvironmentConfiguration.Instance.GetRyukContainerImage() ?? PropertiesFileConfiguration.Instance.GetRyukContainerImage();
 
     /// <summary>
     /// Gets or sets the <see cref="ResourceReaper" /> public host port.
@@ -153,14 +161,14 @@ namespace DotNet.Testcontainers.Configurations
     /// </remarks>
     [CanBeNull]
     public static string HubImageNamePrefix { get; set; }
-      = PropertiesFileConfiguration.Instance.GetHubImageNamePrefix() ?? EnvironmentConfiguration.Instance.GetHubImageNamePrefix();
+      = EnvironmentConfiguration.Instance.GetHubImageNamePrefix() ?? PropertiesFileConfiguration.Instance.GetHubImageNamePrefix();
 
     /// <summary>
     /// Gets or sets the logger.
     /// </summary>
     [NotNull]
     public static ILogger Logger { get; set; }
-      = new Logger();
+      = ConsoleLogger.Instance;
 
     /// <summary>
     /// Gets or sets the host operating system.
@@ -177,12 +185,16 @@ namespace DotNet.Testcontainers.Configurations
       => ManualResetEvent.WaitHandle;
 
     /// <inheritdoc cref="PortForwardingContainer.ExposeHostPortsAsync" />
-    public static async Task ExposeHostPortsAsync(params ushort[] ports)
+    public static Task ExposeHostPortsAsync(ushort port, CancellationToken ct = default)
+      => ExposeHostPortsAsync(new[] { port }, ct);
+
+    /// <inheritdoc cref="PortForwardingContainer.ExposeHostPortsAsync" />
+    public static async Task ExposeHostPortsAsync(IEnumerable<ushort> ports, CancellationToken ct = default)
     {
-      await PortForwardingContainer.Instance.StartAsync()
+      await PortForwardingContainer.Instance.StartAsync(ct)
         .ConfigureAwait(false);
 
-      await PortForwardingContainer.Instance.ExposeHostPortsAsync(ports)
+      await PortForwardingContainer.Instance.ExposeHostPortsAsync(ports, ct)
         .ConfigureAwait(false);
     }
   }

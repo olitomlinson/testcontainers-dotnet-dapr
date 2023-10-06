@@ -29,10 +29,31 @@ _ = new ContainerBuilder()
   .WithEnvironment("ASPNETCORE_URLS", "https://+")
   .WithEnvironment("ASPNETCORE_Kestrel__Certificates__Default__Path", "/app/certificate.crt")
   .WithEnvironment("ASPNETCORE_Kestrel__Certificates__Default__Password", "password")
-  .WithResourceMapping("certificate.crt", "/app/certificate.crt");
+  .WithResourceMapping("certificate.crt", "/app/");
 ```
 
 `WithBindMount(string, string)` is another option to provide access to directories or files. It mounts a host directory or file into the container. Note, this does not follow our best practices. Host paths differ between environments and may not be available on every system or Docker setup, e.g. CI.
+
+## Copying directories or files to the container
+
+Sometimes it is necessary to copy files into the container to configure the services running inside the container in advance, like the `appsettings.json` or an SSL certificate. The container builder API provides a member `WithResourceMapping(string, string)`, including several overloads to copy directories or individual files to a container's directory.
+
+```csharp title="Copying a directory"
+_ = new ContainerBuilder()
+  .WithResourceMapping(new DirectoryInfo("."), "/app/");
+```
+
+```csharp title="Copying a file"
+_ = new ContainerBuilder()
+  .WithResourceMapping(new FileInfo("appsettings.json"), "/app/");
+```
+
+Another overloaded member of the container builder API allows you to copy the contents of a byte array to a specific file path within the container. This can be useful when you already have the file content stored in memory or when you need to dynamically generate the file content before copying it.
+
+```csharp title="Copying a byte array"
+_ = new ContainerBuilder()
+  .WithResourceMapping(Encoding.Default.GetBytes("{}"), "/app/appsettings.json");
+```
 
 ## Examples
 
@@ -120,6 +141,7 @@ Assert.Equal(MagicNumber, magicNumber);
 | `WithNetworkAliases`          | Assigns a network-scoped aliases to the container e.g. `--network-alias "alias"`.                                                                                                    |
 | `WithExtraHost`               | Adds a custom host-to-IP mapping to the container's `/etc/hosts` respectively `%WINDIR%\\system32\\drivers\\etc\\hosts` e.g. `--add-host "host.testcontainers.internal:172.17.0.2"`. |
 | `WithPrivileged`              | Sets the `--privileged` flag.                                                                                                                                                        |
+| `WithOutputConsumer`          | Redirects `stdout` and `stderr` to capture the container output.                                                                                                                     |
 | `WithWaitStrategy`            | Sets the wait strategy to complete the container start and indicates when it is ready.                                                                                               |
 | `WithStartupCallback`         | Sets the startup callback to invoke after the container start.                                                                                                                       |
 | `WithCreateParameterModifier` | Allows low level modifications of the Docker container create parameter.                                                                                                             |
