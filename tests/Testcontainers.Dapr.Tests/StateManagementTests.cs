@@ -10,19 +10,6 @@ public sealed class StateManagementTests : IAsyncLifetime
     private DaprContainer _daprContainer;
     private INetwork _network;
     private const string _stateStoreName = "mystatestore";
-    private string _redisComponent = @"---
-        apiVersion: dapr.io/v1alpha1
-        kind: Component
-        metadata:
-         name: {0}
-        spec:
-         type: state.redis
-         version: v1
-         metadata:
-         - name: redisHost
-           value: ""{1}""
-         - name: redisPassword
-           value: ""{2}""";
 
     public async Task InitializeAsync()
     {
@@ -31,21 +18,17 @@ public sealed class StateManagementTests : IAsyncLifetime
             .Build();
         await _network.CreateAsync().ConfigureAwait(false);
 
-        var redisAlias = "redis";
         _redisContainer = new RedisBuilder()
             .WithNetwork(_network)
-            .WithNetworkAliases(redisAlias)
+            .WithNetworkAliases("redis")
             .Build();
         await _redisContainer.StartAsync().ConfigureAwait(false);
-
-        var redisComponent = string.Format(_redisComponent, _stateStoreName, $"{redisAlias}:{RedisBuilder.RedisPort}", "");
 
         _daprContainer = new DaprBuilder()
             .WithLogLevel("debug")
             .WithAppId("my-app")
             .WithNetwork(_network)
-            .WithResourcesPath("/DaprComponents")
-            .WithResourceMapping(Encoding.Default.GetBytes(redisComponent), "/DaprComponents/statestore.yaml")
+            .WithResourcesPath("components")
             .DependsOn(_redisContainer)
             .Build();
         await _daprContainer.StartAsync().ConfigureAwait(false);

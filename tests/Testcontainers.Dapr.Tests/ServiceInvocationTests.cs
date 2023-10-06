@@ -25,7 +25,7 @@ public sealed class ServiceInvocationTests : IAsyncLifetime
             .WithNetworkAliases(receiverAppNetworkAlias)
             .WithImage("nginx")
             .WithExposedPort(receiverAppPort)
-            .WithResourceMapping($"nginx/nginx.conf", "/etc/nginx/nginx.conf")
+            .WithResourceMapping($"nginx", "/etc/nginx/")
             .Build();
         await _receiverAppContainer.StartAsync().ConfigureAwait(false);
 

@@ -3,14 +3,16 @@ namespace Testcontainers.Dapr;
 [PublicAPI]
 public sealed class DaprBuilder : ContainerBuilder<DaprBuilder, DaprContainer, DaprConfiguration>
 {
-    public const string DaprImage = "daprio/daprd:nightly-2023-04-28";
+    public const string DaprImage = "daprio/daprd";
+    public string Tag;
     public const int DaprHttpPort = 3500;
     public const int DaprGrpcPort = 50001;
     public const string LogLevel = "info";
 
-    public DaprBuilder()
+    public DaprBuilder(string tag = "latest")
         : this(new DaprConfiguration())
     {
+        Tag = tag;
         DockerResourceConfiguration = Init().DockerResourceConfiguration;
     }
 
@@ -24,35 +26,48 @@ public sealed class DaprBuilder : ContainerBuilder<DaprBuilder, DaprContainer, D
 
     public DaprBuilder WithAppId(string appId)
     {
-        // TODO: What happens if developers call WithAppId(string) multiple times?
+        if (!string.IsNullOrEmpty(DockerResourceConfiguration.AppId))
+            throw new ArgumentException($"'AppId' has already been set. It can only be set once", "appId");
+
         return Merge(DockerResourceConfiguration, new DaprConfiguration(appId: appId))
             .WithCommand("--app-id", appId);
     }
 
     public DaprBuilder WithAppPort(int appPort)
     {
-        // TODO: What happens if developers call WithAppId(string) multiple times?
-        return Merge(DockerResourceConfiguration, new DaprConfiguration())
+        if ((DockerResourceConfiguration.AppPort.HasValue))
+            throw new ArgumentException($"'AppPort' has already been set. It can only be set once", "appPort");
+
+        return Merge(DockerResourceConfiguration, new DaprConfiguration(appPort: appPort))
             .WithCommand("--app-port", appPort.ToString());
     }
     
     public DaprBuilder WithLogLevel(string logLevel)
     {
-        // TODO : Introduce an Enum for logLevel values.
+        if (!string.IsNullOrEmpty(DockerResourceConfiguration.LogLevel))
+            throw new ArgumentException("'LogLevel' has already been set. It can only be set once", "logLevel");
+
         return Merge(DockerResourceConfiguration, new DaprConfiguration(logLevel: logLevel))
             .WithCommand("--log-level", logLevel);
     }
 
-    public DaprBuilder WithAppChannelAddress(string appChannelHost)
+    public DaprBuilder WithAppChannelAddress(string appChannelAddress)
     {
-        // TODO : Introduce an Enum for logLevel values.
-        return Merge(DockerResourceConfiguration, new DaprConfiguration(appChannelAddress: appChannelHost))
-            .WithCommand("--app-channel-address", appChannelHost);
+        if (!string.IsNullOrEmpty(DockerResourceConfiguration.AppChannelAddress))
+            throw new ArgumentException("'AppChannelAddress' has already been set. It can only be set once", "appChannelAddress");
+
+        return Merge(DockerResourceConfiguration, new DaprConfiguration(appChannelAddress: appChannelAddress))
+            .WithCommand("--app-channel-address", appChannelAddress);
     }
 
-    public DaprBuilder WithResourcesPath(string resourcesPath){
+    public DaprBuilder WithResourcesPath(string resourcesPath, bool useLegacyComponentPath = false){
+        if (!string.IsNullOrEmpty(DockerResourceConfiguration.ResourcesPath))
+            throw new ArgumentException("'ResourcePath' has already been set. It can only be set once", "resourcePath");
+        string command = useLegacyComponentPath ? "--components-path" : "--resources-path";
+
         return Merge(DockerResourceConfiguration, new DaprConfiguration(resourcesPath: resourcesPath))
-            .WithCommand("--resources-path", resourcesPath);
+            .WithCommand(command, resourcesPath)
+            .WithResourceMapping(resourcesPath, $"/{resourcesPath}/");
     }
 
     public override DaprContainer Build()
@@ -65,7 +80,7 @@ public sealed class DaprBuilder : ContainerBuilder<DaprBuilder, DaprContainer, D
     protected override DaprBuilder Init()
     {
         return base.Init()
-            .WithImage(DaprImage)
+            .WithImage($"{DaprImage}:{Tag}")
             .WithEntrypoint("./daprd")
             .WithCommand("-dapr-http-port", DaprHttpPort.ToString())
             .WithCommand("-dapr-grpc-port", DaprGrpcPort.ToString())

@@ -18,5 +18,6 @@
     </ItemGroup>
     <ItemGroup>
         <None Include="nginx\**" CopyToOutputDirectory="PreserveNewest" LinkBase="nginx\" />
+        <None Include="components\**" CopyToOutputDirectory="PreserveNewest" LinkBase="components\" />
     </ItemGroup>
 </Project>
